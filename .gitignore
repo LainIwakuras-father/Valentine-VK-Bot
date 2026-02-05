@@ -1,0 +1,158 @@
+# ====================
+# Go специфичное
+# ====================
+
+# Бинарники и исполняемые файлы
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Директории сборки
+bin/
+dist/
+out/
+
+# Файлы покрытия кода тестами
+coverage.out
+coverage.html
+coverage.txt
+*.coverprofile
+*.cover
+
+# Файлы модулей Go (vendor)
+vendor/
+
+# Файл рабочего пространства Go
+go.work
+go.work.sum
+
+# Кэш тестов
+test-results/
+
+# ====================
+# Docker
+# ====================
+
+# Docker файлы окружения
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.dockerenv
+
+# Dockerignore
+.dockerignore
+
+# Docker Compose
+docker-compose.override.yml
+
+# Временные файлы Docker
+**/.docker/*
+**/docker-compose.*.yml
+
+# ====================
+# Редакторы и IDE
+# ====================
+
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vscode/*.code-workspace
+
+# GoLand
+.idea/
+*.iml
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*#
+.#*
+\#*\#
+.\#*
+
+# ====================
+# Системные файлы
+# ====================
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ====================
+# Проект специфичное
+# ====================
+
+# Логи приложения
+*.log
+logs/
+*.pid
+
+# Временные файлы
+tmp/
+temp/
+
+# Файлы конфигурации (кроме примеров)
+config.yaml
+config.yml
+config.json
+!config.example.*
+
+# Базы данных локальные
+*.db
+*.sqlite
+*.sqlite3
+
+# Миграции (если генерируются)
+migrations/*.sql
+
+# Документация
+docs/_build/
+
+# ====================
+# Air (hot reload)
+# ====================
+
+air.log
+tmp/air_build/
+
+# ====================
+# Telegram бот специфичное
+# ====================
+
+# Файлы сессий
+*.session
+
+# Кэшированные данные
+cache/
+data/
+
+# Ключи и сертификаты
+*.key
+*.pem
+*.crt
+*.cert
