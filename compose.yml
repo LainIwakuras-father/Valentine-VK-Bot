@@ -1,0 +1,78 @@
+name: template 
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    restart: unless-stopped
+    command: python -m presentation.api.main
+
+    depends_on:
+      - db
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - .env
+
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./src
+          target: /app/src
+
+        - action: rebuild
+          path: pyproject.toml
+
+  db:
+    image: postgres:16
+
+    volumes:
+      - postgres-db:/var/lib/postgresql/data
+
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+
+    ports:
+      - 5432:5432
+
+  migrator:
+    build:
+      context: .
+      dockerfile: migrator/Dockerfile
+
+    depends_on:
+      - db
+
+    env_file:
+      - .env
+
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - DB_HOST=db
+      - DB_NAME=mydb
+      - DB_USER=myuser
+      - DB_PASS=mypassword
+
+    volumes:
+      - ./migrations:/app/migrations
+
+    command: >
+        sh -c "./migrator/wait-for-it.sh db:5432 --timeout=30 --strict -- alembic upgrade head"
+
+
+    #command: sleep 3 && alembic revision --autogenerate -m "yo"
+    #command: ["alembic", "-c", "pyproject.toml", "upgrade", "head"]
+    #command: ["alembic", "upgrade", "head"]
+
+
+volumes:
+  sqlite-db:
+  postgres-db:
+  migrations:
