@@ -2,6 +2,7 @@ package storage
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/domain"
 	"gorm.io/driver/sqlite"
@@ -9,7 +10,13 @@ import (
 )
 
 func NewSqliteDB() (*gorm.DB, error) {
-	db, err := gorm.Open(sqlite.Open("Valentine.db"), &gorm.Config{})
+	// Берём путь из переменной окружения, иначе стандартный /app/data/valentine.db
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		// Проверим, существует ли папка /app/data — если нет, значит локальный запуск
+		dbPath = "./valentine.db"
+	}
+	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка подключения БД %w", err)
 	}
