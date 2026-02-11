@@ -14,7 +14,7 @@ func NewSqliteDB() (*gorm.DB, error) {
 	dbPath := os.Getenv("DB_PATH")
 	if dbPath == "" {
 		// Проверим, существует ли папка /app/data — если нет, значит локальный запуск
-		dbPath = "./valentine.db"
+		dbPath = "./Valentine.db"
 	}
 	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {

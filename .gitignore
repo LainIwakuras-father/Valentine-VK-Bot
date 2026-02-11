@@ -156,3 +156,6 @@ data/
 *.pem
 *.crt
 *.cert
+
+*.db
+
