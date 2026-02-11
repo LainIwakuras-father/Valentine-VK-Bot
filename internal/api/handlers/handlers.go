@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	//	"strconv"
 	"strings"
 	"time"
+
+	//	"strconv"
 
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/aplication/usecases"
 	vkkeyboard "github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/vk"
 	"github.com/SevereCloud/vksdk/v3/api"
+	"github.com/SevereCloud/vksdk/v3/events"
+	"github.com/SevereCloud/vksdk/v3/object"
 )
 
 // ValentineHandler обработчик валентинок
@@ -34,7 +37,18 @@ func NewValentineHandler(vk *api.VK, service *usecases.ValentineUseCases, stateM
 // ------------------- СОСТОЯНИЯ -------------------
 
 // Handle обрабатывает сообщения
-func (h *ValentineHandler) Handle(ctx context.Context, userID int, text string) bool {
+func (h *ValentineHandler) Handle(ctx context.Context, obj events.MessageNewObject) bool {
+	userID := obj.Message.PeerID
+	text := obj.Message.Text
+	attachments := obj.Message.Attachments
+
+	// Глобальная отмена
+	if text == "❌ Отмена" {
+		h.stateManager.ClearState(userID)
+		vkkeyboard.SendKeyboard(h.vk, userID, "❌ Отправка отменена.", vkkeyboard.NewStartKeyboard())
+		return true
+	}
+
 	step, data := h.stateManager.GetState(userID)
 	h.log.Debug("Обработка", "user_id", userID, "text", text, "step", step)
 
@@ -53,6 +67,8 @@ func (h *ValentineHandler) Handle(ctx context.Context, userID int, text string) 
 		return h.handlePhotoAfterText(ctx, userID, text, data)
 	case "waiting_photo_url":
 		return h.handlePhotoURL(ctx, userID, text, data)
+	case "waiting_custom_text_and_photo":
+		return h.handleCustomTextAndPhoto(ctx, userID, text, attachments, data)
 	}
 
 	// Команды без состояния
@@ -90,7 +106,7 @@ func (h *ValentineHandler) handleAnonymous(ctx context.Context, userID int, text
 	h.stateManager.SetState(userID, "waiting_recipient")
 	vkkeyboard.SendMessage(h.vk, userID,
 		"Введите ID или ссылку на профиль ВКонтакте получателя:\n"+
-			"Примеры: id123456789, https://vk.com/id123456789, @id123456789")
+			"Примеры: id123456789, https://vk.com/id123456789, id123456789 (уберите символ @ из никнейма)")
 	return true
 }
 
@@ -108,11 +124,13 @@ func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, 
 	switch text {
 	case "Заготовленная":
 		h.stateManager.SetState(userID, "waiting_premade")
-		vkkeyboard.SendKeyboard(h.vk, userID, "Выберите готовую валентинку:", vkkeyboard.NewPremadeKeyboard())
+		vkkeyboard.SendKeyboard(h.vk, userID, "Выберите готовую валентинку:", vkkeyboard.NewTemplateKeyboard())
 		return true
 	case "Собственная":
-		h.stateManager.SetState(userID, "waiting_custom_text")
-		vkkeyboard.SendMessage(h.vk, userID, "✍️ Введите текст вашей валентинки (до 500 символов):")
+		h.stateManager.SetState(userID, "waiting_custom_text_and_photo")
+		vkkeyboard.SendMessage(h.vk, userID,
+			"✍️ Напишите текст валентинки и **прикрепите фото** (необязательно).\n"+
+				"Отправьте одним сообщением: текст + вложение.")
 		return true
 	default:
 		vkkeyboard.SendKeyboard(h.vk, userID, "Выберите тип:", vkkeyboard.NewValentineTypeKeyboard())
@@ -120,28 +138,28 @@ func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, 
 	}
 }
 
-// 4. Готовая валентинка
+// Предопределённые attachment'ы готовых валентинок
+var templateAttachments = map[string]string{
+	"💝 1": "photo-123456_789012", // замените на реальные ID фото из вашего сообщества
+	"💘 2": "photo-123456_789013",
+	"💖 3": "photo-123456_789014",
+	"💗 4": "photo-123456_789015",
+}
+
 func (h *ValentineHandler) handlePremade(ctx context.Context, userID int, text string, data map[string]interface{}) bool {
-	var message, imageID string
-	switch text {
-	case "💝 Валентинка 1":
-		message = "С Днём Святого Валентина! Ты делаешь этот мир лучше! ❤️"
-		imageID = "premade_1"
-	case "💘 Валентинка 2":
-		message = "Ты — самое прекрасное, что случалось со мной! 💘"
-		imageID = "premade_2"
-	case "💖 Валентинка 3":
-		message = "Моё сердце бьётся только для тебя! 💖"
-		imageID = "premade_3"
-	case "💗 Валентинка 4":
-		message = "Твоя улыбка — моё счастье! 💗"
-		imageID = "premade_4"
-	default:
-		vkkeyboard.SendKeyboard(h.vk, userID, "Выберите из списка:", vkkeyboard.NewPremadeKeyboard())
+	// Если текст — одна из кнопок шаблона
+	if attachment, ok := templateAttachments[text]; ok {
+		// Берём стандартное сообщение для этого шаблона
+		message := "С Днём Святого Валентина! ❤️"
+		h.finishValentineSending(ctx, userID, data, message, "template", attachment)
 		return true
 	}
-	// У готовой валентинки фото не добавляем (можно и добавить, но пока пропустим)
-	h.finishValentineSending(ctx, userID, data, message, imageID, "")
+
+	// Иначе показываем клавиатуру шаблонов
+	h.stateManager.SetState(userID, "waiting_premade")
+	vkkeyboard.SendKeyboard(h.vk, userID,
+		"Выберите дизайн валентинки:",
+		vkkeyboard.NewTemplateKeyboard())
 	return true
 }
 
@@ -199,6 +217,29 @@ func (h *ValentineHandler) handlePhotoURL(ctx context.Context, userID int, text 
 
 	customText, _ := data["custom_text"].(string)
 	h.finishValentineSending(ctx, userID, data, customText, "custom", text)
+	return true
+}
+
+// Новый обработчик
+func (h *ValentineHandler) handleCustomTextAndPhoto(ctx context.Context, userID int, text string, attachments []object.MessagesMessageAttachment, data map[string]interface{}) bool {
+	// 1. Проверяем текст
+	if len(text) < 3 || len(text) > 500 {
+		vkkeyboard.SendMessage(h.vk, userID, "❌ Текст должен быть от 3 до 500 символов. Попробуйте снова:")
+		return true
+	}
+
+	// 2. Ищем фото во вложениях
+	var photoAttachment string
+	for _, att := range attachments {
+		if att.Type == "photo" {
+			photoAttachment = fmt.Sprintf("photo%d_%d", att.Photo.OwnerID, att.Photo.ID)
+			h.log.Info("Получено фото-вложение", "attachment", photoAttachment)
+			break
+		}
+	}
+
+	// 3. Если фото нет, просто продолжаем без него
+	h.finishValentineSending(ctx, userID, data, text, "custom", photoAttachment)
 	return true
 }
 
@@ -295,15 +336,18 @@ func (h *ValentineHandler) handleViewSent(ctx context.Context, userID int) {
 
 func (h *ValentineHandler) handleViewReceived(ctx context.Context, userID int) {
 	if !h.service.CanViewReceived() {
-		now := time.Now()
-		next := time.Date(now.Year()+1, time.February, 14, 0, 0, 0, 0, now.Location())
-		days := int(next.Sub(now).Hours() / 24)
-		msg := fmt.Sprintf("📅 Полученные валентинки можно посмотреть только с 14 февраля!\n\n⏳ Осталось %d дней.", days)
+		//	now := time.Now()
+		//	next := time.Date(now.Year()+1, time.February, 14, 0, 0, 0, 0, now.Location())
+		//	days := int(next.Sub(now).Hours() / 24)
+		msg := fmt.Sprintf("📅 Полученные валентинки можно посмотреть только с 14 февраля!")
+		// ⏳ Осталось %d дней."), days)
 		vkkeyboard.SendKeyboard(h.vk, userID, msg, vkkeyboard.NewStartKeyboard())
 		return
 	}
 
 	valentines, err := h.service.GetReceivedValentines(ctx, userID)
+	h.log.Info("пользователь", userID)
+	h.log.Info("Валентинок найдено для пользователя:", valentines)
 	if err != nil {
 		h.log.Error("Ошибка получения полученных", "user_id", userID, "error", err)
 		vkkeyboard.SendKeyboard(h.vk, userID,
