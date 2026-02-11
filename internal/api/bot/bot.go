@@ -24,9 +24,10 @@ type App struct {
 }
 
 // NewApp создает новый экземпляр приложения
-func NewApp(vk *api.VK, lp *longpoll.LongPoll, repo repositories.ValentineRepository, log *slog.Logger) *App {
+func NewApp(vk *api.VK, lp *longpoll.LongPoll, repo repositories.ValentineRepository, log *slog.Logger, testMode bool) *App {
 	// Создаем сервисы
-	valentineService := usecases.NewValentineUseCases(repo, log)
+
+	valentineService := usecases.NewValentineUseCases(repo, vk, log, testMode)
 	stateManager := handlers.NewStateManager()
 	valentineHandler := handlers.NewValentineHandler(vk, valentineService, stateManager, log)
 
@@ -74,14 +75,13 @@ func (app *App) handleMessage(ctx context.Context, obj events.MessageNewObject) 
 				"1. Отправьте валентинку - она сохранится\n"+
 				"2. Посмотрите свои отправленные валентинки в любое время\n"+
 				"3. Полученные валентинки можно посмотреть с 14 февраля\n\n"+
-				"🎨 Теперь можно отправлять валентинки с фото!\n\n"+
 				"Выберите действие:",
 			vkkeyboard.NewStartKeyboard())
 		return
 	}
 
 	// Пробуем обработать через ValentineHandler
-	if app.valentineHandler.Handle(ctx, userID, text) {
+	if app.valentineHandler.Handle(ctx, obj) {
 		return
 	}
 

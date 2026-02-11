@@ -85,47 +85,6 @@ func NewAnonymityKeyboard() *object.MessagesKeyboard {
 	}
 }
 
-// NewPremadeKeyboard создает клавиатуру с готовыми валентинками
-func NewPremadeKeyboard() *object.MessagesKeyboard {
-	return &object.MessagesKeyboard{
-		OneTime: true,
-		Buttons: [][]object.MessagesKeyboardButton{
-			{
-				{
-					Action: object.MessagesKeyboardButtonAction{
-						Type:  "text",
-						Label: "💝 Валентинка 1",
-					},
-					Color: "primary",
-				},
-				{
-					Action: object.MessagesKeyboardButtonAction{
-						Type:  "text",
-						Label: "💘 Валентинка 2",
-					},
-					Color: "primary",
-				},
-			},
-			{
-				{
-					Action: object.MessagesKeyboardButtonAction{
-						Type:  "text",
-						Label: "💖 Валентинка 3",
-					},
-					Color: "primary",
-				},
-				{
-					Action: object.MessagesKeyboardButtonAction{
-						Type:  "text",
-						Label: "💗 Валентинка 4",
-					},
-					Color: "primary",
-				},
-			},
-		},
-	}
-}
-
 // NewValentineTypeKeyboard создает клавиатуру для выбора типа валентинки (без отдельного фото)
 func NewValentineTypeKeyboard() *object.MessagesKeyboard {
 	return &object.MessagesKeyboard{
@@ -148,6 +107,24 @@ func NewValentineTypeKeyboard() *object.MessagesKeyboard {
 					},
 					Color: "primary",
 				},
+			},
+		},
+	}
+}
+
+// NewTemplateKeyboard создаёт клавиатуру с готовыми валентинками (фото)
+func NewTemplateKeyboard() *object.MessagesKeyboard {
+	return &object.MessagesKeyboard{
+		OneTime: true,
+		Inline:  false, // обычная, не инлайн (лучше для ботов)
+		Buttons: [][]object.MessagesKeyboardButton{
+			{
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💝 1"}, Color: "primary"},
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💘 2"}, Color: "primary"},
+			},
+			{
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💖 3"}, Color: "primary"},
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💗 4"}, Color: "primary"},
 			},
 		},
 	}
