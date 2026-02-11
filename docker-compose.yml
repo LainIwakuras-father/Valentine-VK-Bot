@@ -16,6 +16,7 @@ services:
     volumes:
       - ./:/app
       - go-mod-cache:/go/pkg/mod
+      - sqlite-data:/app/data
     develop:
        watch:
          - action: sync+restart
@@ -23,6 +24,7 @@ services:
            target: /app/src
     command: air -c .air.toml
     environment:
-      - GIN_MODE=release
+      - CGO_ENABLED=1 
 volumes:
   go-mod-cache:
+  sqlite-data:

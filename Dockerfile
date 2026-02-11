@@ -9,12 +9,20 @@ RUN apk add --no-cache \
     git \
     bash \
     curl \
-    make
+    make \
+    sqlite-dev \
+    gcc \
+    musl-dev
 # Копирование файлов зависимостей
 COPY go.mod go.sum ./
 RUN go mod download
 # Копирование исходного кода
 COPY . .
+# Собираем с включённым CGO и флагами для SQLite
+ENV CGO_ENABLED=1
+ENV GOOS=linux
+ENV GOARCH=amd64
+
 # ==================== Development Stage ====================
 FROM base AS dev
 

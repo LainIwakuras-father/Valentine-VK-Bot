@@ -1,45 +1,67 @@
 package main
 
 import (
-	"context"
-	// 	"go/token"
-	"log"
 	"os"
 
 	"github.com/joho/godotenv"
 
+	// Импорт с точкой (тогда все функции будут доступны напрямую)
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/api/bot"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/aplication/usecases"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/config"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/storage"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/storage/repositories"
+
 	"github.com/SevereCloud/vksdk/v3/api"
 
-	"github.com/SevereCloud/vksdk/v3/events"
 	longpoll "github.com/SevereCloud/vksdk/v3/longpoll-bot"
 )
 
 func main() {
+	log := config.SetupLogger()
 	// НЕ ЗАБЫВАЙ ПРО ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ
 
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Ошибка: .env file not found: %v", err)
+		log.Info("Ошибка: .env file not found: %v", err)
 	}
 	token := os.Getenv("TOKEN")
 	if token == "" {
-		log.Fatal("Переменная окружения TOKEN не установлена!")
+		log.Error("Переменная окружения TOKEN не установлена!")
+		os.Exit(1)
 	}
+	log.Info("Иницилизация Базы Данных...")
+	// Инициализируем базу данных
+	db, err := storage.NewSqliteDB()
+	if err != nil {
+		log.Error("Ошибка инициализации базы данных:", err)
+	}
+	defer func() {
+		if err := storage.CloseDB(db); err != nil {
+			log.Error("Ошибка закрытия БД: %v", err)
+		}
+	}()
+	// иницилизация repo
+	repo := repositories.NewGORMValentineRepo(db)
 	vk := api.NewVK(token)
-	log.Printf("Иницилизируем бота...")
+	log.Info("Иницилизируем бота...")
 	lp, err := longpoll.NewLongPoll(vk, 235791902)
 	if err != nil {
-		log.Fatal("Ошибка инициализации LongPoll:", err)
+		log.Error("Ошибка инициализации LongPoll:", err)
 		panic(err)
 	}
 
-	lp.MessageNew(func(ctx context.Context, obj events.MessageNewObject) {
-		log.Print(obj.Message.Text)
-	})
+	// простой обработчик
+	botVk := bot.NewApp(vk, lp, repo, log)
+	log.Info("Запускаем бота...")
 
-	log.Printf("Запускаем бота...")
+	// планировщик отправлений валентинок
+	scheduler := usecases.NewScheduler(vk, botVk.ValentineService, log)
+	scheduler.Start()
+	defer scheduler.Stop()
+
 	// Запуск
-	if err := lp.Run(); err != nil {
-		log.Fatal("Бот не смог запустится", err)
+	if err := botVk.Run(); err != nil {
+		log.Error("Бот не смог запустится", err)
 	}
 
 	// Безопасное завершение
@@ -49,4 +71,5 @@ func main() {
 	// Закрыть соединение
 	// Требует lp.Client.Transport = &http.Transport{DisableKeepAlives: true}
 	lp.Client.CloseIdleConnections()
+	log.Info("Бот завершил работу")
 }

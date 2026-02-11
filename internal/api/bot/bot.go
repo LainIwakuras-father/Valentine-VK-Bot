@@ -1,0 +1,92 @@
+package bot
+
+import (
+	"context"
+	"log/slog"
+
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/api/handlers"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/aplication/usecases"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/storage/repositories"
+	vkkeyboard "github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/vk"
+	"github.com/SevereCloud/vksdk/v3/api"
+	"github.com/SevereCloud/vksdk/v3/events"
+	"github.com/SevereCloud/vksdk/v3/longpoll-bot"
+)
+
+// App представляет основное приложение бота
+type App struct {
+	vk               *api.VK
+	lp               *longpoll.LongPoll
+	ValentineService *usecases.ValentineUseCases
+	stateManager     *handlers.StateManager
+	valentineHandler *handlers.ValentineHandler
+	log              *slog.Logger
+}
+
+// NewApp создает новый экземпляр приложения
+func NewApp(vk *api.VK, lp *longpoll.LongPoll, repo repositories.ValentineRepository, log *slog.Logger) *App {
+	// Создаем сервисы
+	valentineService := usecases.NewValentineUseCases(repo, log)
+	stateManager := handlers.NewStateManager()
+	valentineHandler := handlers.NewValentineHandler(vk, valentineService, stateManager, log)
+
+	return &App{
+		vk:               vk,
+		lp:               lp,
+		ValentineService: valentineService,
+		stateManager:     stateManager,
+		valentineHandler: valentineHandler,
+		log:              log,
+	}
+}
+
+// Run запускает бота
+func (app *App) Run() error {
+	// Регистрируем обработчики
+	app.registerHandlers()
+
+	app.log.Info("Бот запускается...")
+	return app.lp.Run()
+}
+
+// registerHandlers регистрирует обработчики событий
+func (app *App) registerHandlers() {
+	app.lp.MessageNew(func(ctx context.Context, obj events.MessageNewObject) {
+		app.handleMessage(ctx, obj)
+	})
+}
+
+// handleMessage обрабатывает входящие сообщения
+func (app *App) handleMessage(ctx context.Context, obj events.MessageNewObject) {
+	userID := obj.Message.PeerID
+	text := obj.Message.Text
+
+	app.log.Debug("Новое сообщение",
+		"user_id", userID,
+		"text", text)
+
+	// Обработка приветственных команд
+	if text == "Начать" || text == "Привет" || text == "Меню" {
+		vkkeyboard.SendKeyboard(app.vk, userID,
+			"💝 Добро пожаловать в бот валентинок!\n"+
+				"Здесь вы можете отправлять и получать валентинки.\n\n"+
+				"✨ Как это работает:\n"+
+				"1. Отправьте валентинку - она сохранится\n"+
+				"2. Посмотрите свои отправленные валентинки в любое время\n"+
+				"3. Полученные валентинки можно посмотреть с 14 февраля\n\n"+
+				"🎨 Теперь можно отправлять валентинки с фото!\n\n"+
+				"Выберите действие:",
+			vkkeyboard.NewStartKeyboard())
+		return
+	}
+
+	// Пробуем обработать через ValentineHandler
+	if app.valentineHandler.Handle(ctx, userID, text) {
+		return
+	}
+
+	// Если не обработано, показываем главное меню
+	vkkeyboard.SendKeyboard(app.vk, userID,
+		"Используйте кнопки меню для навигации",
+		vkkeyboard.NewStartKeyboard())
+}
