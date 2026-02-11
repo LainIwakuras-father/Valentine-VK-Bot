@@ -2,8 +2,9 @@ package bot
 
 import (
 	"context"
-	"log"
+	//	"log"
 
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/api/handlers"
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/aplication/usecases"
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/storage/repositories"
 	vkkeyboard "github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/vk"
@@ -17,15 +18,15 @@ type App struct {
 	vk               *api.VK
 	lp               *longpoll.LongPoll
 	valentineService *usecases.ValentineUseCases
-	stateManager     *state.StateManager
+	stateManager     *handlers.StateManager
 	valentineHandler *handlers.ValentineHandler
 }
 
 // NewApp создает новый экземпляр приложения
-func NewApp(vk *api.VK, lp *longpoll.LongPoll, repo repositories.GORMValentineRepository) *App {
+func NewApp(vk *api.VK, lp *longpoll.LongPoll, repo *repositories.GORMValentineRepository) *App {
 	// Создаем сервисы
 	valentineService := usecases.NewValentineUseCases(repo)
-	stateManager := usecases.NewStateManager()
+	stateManager := handlers.NewStateManager()
 	valentineHandler := handlers.NewValentineHandler(vk, valentineService, stateManager)
 
 	return &App{
@@ -42,7 +43,6 @@ func (app *App) Run() error {
 	// Регистрируем обработчики
 	app.registerHandlers()
 
-	log.Printf("Запускаем бота...")
 	return app.lp.Run()
 }
 

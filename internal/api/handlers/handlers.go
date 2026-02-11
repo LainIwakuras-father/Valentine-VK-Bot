@@ -112,8 +112,8 @@ func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, 
 	case "Заготовленная":
 		h.stateManager.SetState(userID, "waiting_premade")
 		vkkeyboard.SendKeyboard(h.vk, userID,
-			"Выберите готовую валентинку:",
-			vkkeyboard.NewPremadeImagesKeyboard())
+			"Выберите готовую валентинку:", nil)
+		//	vkkeyboard.NewPremadeImagesKeyboard())
 		return true
 	case "Собственная":
 		h.stateManager.SetState(userID, "waiting_custom_text")
@@ -148,8 +148,8 @@ func (h *ValentineHandler) handlePremade(ctx context.Context, userID int, text s
 		imageType = "premade_4"
 	default:
 		vkkeyboard.SendKeyboard(h.vk, userID,
-			"Выберите готовую валентинку:",
-			vkkeyboard.NewPremadeImagesKeyboard())
+			"Выберите готовую валентинку:", nil)
+		//	vkkeyboard.NewPremadeImagesKeyboard())
 		return true
 	}
 
@@ -241,20 +241,16 @@ func (h *ValentineHandler) handleViewSent(ctx context.Context, userID int) {
 
 	for i, v := range valentines {
 		// Форматируем статус отправки
-		status := "⏳ Ожидает отправки 14 февраля"
-		if v.SentAt != nil {
-			status = fmt.Sprintf("✅ Отправлена %s", v.SentAt.Format("02.01.2006"))
-		}
 
 		// Форматируем анонимность
-		//	anonymity := "👤 От вашего имени"
-		//	if v.IsAnonymous {
-		//		anonymity = "🎭 Анонимно"
-		//	}
+		anonymity := "👤 От вашего имени"
+		if v.IsAnonymous {
+			anonymity = "🎭 Анонимно"
+		}
 
 		message += fmt.Sprintf("%d. Для ID%d\n", i+1, v.RecipientID)
 		message += fmt.Sprintf("   Сообщение: %s\n", v.FormatMessage())
-		message += fmt.Sprintf("   %s | %s\n\n", anonymity, status)
+		message += fmt.Sprintf("   %s | %s\n\n", anonymity)
 	}
 
 	vkkeyboard.SendKeyboard(h.vk, userID, message, vkkeyboard.NewStartKeyboard())

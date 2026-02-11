@@ -33,7 +33,7 @@ func (g *GORMValentineRepository) GetAllSender(ctx context.Context, senderID int
 	var valentines []*domain.Valentine
 	err := g.db.WithContext(ctx).
 		Where("sender_id = ?", senderID).
-		Order("sent_at DESC").
+		// Order("sent_at DESC").
 		Find(&valentines).Error
 
 	return valentines, err
@@ -43,7 +43,7 @@ func (g *GORMValentineRepository) GetAllReciever(ctx context.Context, recieverID
 	var valentines []*domain.Valentine
 	err := g.db.WithContext(ctx).
 		Where("recipient_id = ?", recieverID).
-		Order("sent_at DESC").
+		// Order("sent_at DESC").
 		Find(&valentines).Error
 
 	return valentines, err
@@ -51,12 +51,14 @@ func (g *GORMValentineRepository) GetAllReciever(ctx context.Context, recieverID
 
 func (g *GORMValentineRepository) Exist(ctx context.Context, senderID, receiverID int, date time.Time) (bool, error) {
 	var count int64
-	startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	endOfDay := startOfDay.Add(24 * time.Hour)
+	// startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	// endOfDay := startOfDay.Add(24 * time.Hour)
 
 	err := g.db.WithContext(ctx).Model(&domain.Valentine{}).
-		Where("sender_id = ? AND recipient_id = ? AND sent_at >= ? AND sent_at < ?",
-			senderID, receiverID, startOfDay, endOfDay).
+		// Where("sender_id = ? AND recipient_id = ? AND sent_at >= ? AND sent_at < ?",
+		Where("sender_id = ? AND recipient_id = ?",
+			senderID, receiverID).
+		// senderID, receiverID, startOfDay, endOfDay).
 		Count(&count).Error
 
 	return count > 0, err

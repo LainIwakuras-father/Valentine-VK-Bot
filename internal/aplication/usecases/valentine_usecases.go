@@ -12,11 +12,11 @@ import (
 
 // ValentineUseCases содержит бизнес-логику работы с валентинками
 type ValentineUseCases struct {
-	repo repositories.GORMValentineRepository
+	repo *repositories.GORMValentineRepository
 }
 
 // NewValentineUseCases создает новый экземпляр use cases
-func NewValentineUseCases(repo repositories.GORMValentineRepository) *ValentineUseCases {
+func NewValentineUseCases(repo *repositories.GORMValentineRepository) *ValentineUseCases {
 	return &ValentineUseCases{repo: repo}
 }
 
@@ -47,7 +47,7 @@ func (u *ValentineUseCases) SendValentine(
 		RecipientID: recipientID,
 		Message:     message,
 		// ImageType:   imageType,
-		// IsAnonymous: isAnonymous,
+		IsAnonymous: isAnonymous,
 		// CreatedAt:   time.Now(),
 		// SentAt:      nil, // Будет отправлено 14 февраля
 		// Opened:      false,
@@ -64,10 +64,6 @@ func (u *ValentineUseCases) SendValentine(
 // сценарий просмотра полученный сообщений
 func (u *ValentineUseCases) GetReceivedValentines(ctx context.Context, userID int) ([]*domain.Valentine, error) {
 	// Проверяем дату
-	now := time.Now()
-	if now.Month() != time.February || now.Day() != 14 {
-		return nil, fmt.Errorf("полученные валентинки можно посмотреть только 14 февраля")
-	}
 
 	valentines, err := u.repo.GetAllReciever(ctx, userID)
 	if err != nil {
@@ -130,4 +126,10 @@ func (u *ValentineUseCases) parseRecipientID(link string) (int, error) {
 	}
 
 	return 0, fmt.Errorf("не удалось распознать ID получателя")
+}
+
+// CanViewReceived проверяет, можно ли просматривать полученные валентинки сегодня
+func (u *ValentineUseCases) CanViewReceived() bool {
+	now := time.Now()
+	return now.Month() == time.February && now.Day() == 11 // 14 February
 }

@@ -12,7 +12,7 @@ func SendMessage(vk *api.VK, userID int, message string) error {
 	return SendKeyboard(vk, userID, message, nil)
 }
 
-func SendKeyboard(vk *api.VK, userID int, message string, keyboard *object.MessagesKeyboard) {
+func SendKeyboard(vk *api.VK, userID int, message string, keyboard *object.MessagesKeyboard) error {
 	params := api.Params{
 		"peer_id":   userID,
 		"message":   message,
@@ -27,6 +27,7 @@ func SendKeyboard(vk *api.VK, userID int, message string, keyboard *object.Messa
 	if err != nil {
 		log.Printf("Ошибка отправки сообщения: %v", err)
 	}
+	return err
 }
 
 func NewStartKeyboard() *object.MessagesKeyboard {
