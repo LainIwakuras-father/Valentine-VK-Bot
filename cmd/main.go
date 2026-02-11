@@ -29,6 +29,13 @@ func main() {
 		log.Error("Переменная окружения TOKEN не установлена!")
 		os.Exit(1)
 	}
+
+	//	groupID := os.Getenv("GROUP_ID")
+	//	if token == "" {
+	//		log.Error("Переменная окружения GROUP_ID не установлена!")
+	//		os.Exit(1)
+	//	}
+
 	testMode := os.Getenv("TEST_MODE") == "true"
 	log.Info("Иницилизация Базы Данных...")
 	// Инициализируем базу данных

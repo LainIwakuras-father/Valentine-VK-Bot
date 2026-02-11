@@ -106,7 +106,7 @@ func (h *ValentineHandler) handleAnonymous(ctx context.Context, userID int, text
 	h.stateManager.SetState(userID, "waiting_recipient")
 	vkkeyboard.SendMessage(h.vk, userID,
 		"Введите ID или ссылку на профиль ВКонтакте получателя:\n"+
-			"Примеры: id123456789, https://vk.com/id123456789, @id123456789")
+			"Примеры: id123456789, https://vk.com/id123456789, id123456789 (уберите символ @ из никнейма)")
 	return true
 }
 
