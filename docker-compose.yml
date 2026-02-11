@@ -16,7 +16,7 @@ services:
     volumes:
       - ./:/app
       - go-mod-cache:/go/pkg/mod
-      - sqlite-data:/app/data
+      - ./data:/app/data
     develop:
        watch:
          - action: sync+restart
@@ -24,7 +24,8 @@ services:
            target: /app/src
     command: air -c .air.toml
     environment:
-      - CGO_ENABLED=1 
+      - CGO_ENABLED=1
+      - DB_PATH=/app/data/valentine.db
 volumes:
   go-mod-cache:
   sqlite-data:
