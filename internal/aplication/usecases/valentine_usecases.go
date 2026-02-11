@@ -3,133 +3,194 @@ package usecases
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/domain"
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/storage/repositories"
+	"github.com/google/uuid"
 )
 
-// ValentineUseCases содержит бизнес-логику работы с валентинками
+// ValentineUseCases бизнес-логика для работы с валентинками
 type ValentineUseCases struct {
-	repo *repositories.GORMValentineRepository
+	repo repositories.ValentineRepository
+	log  *slog.Logger
 }
 
-// NewValentineUseCases создает новый экземпляр use cases
-func NewValentineUseCases(repo *repositories.GORMValentineRepository) *ValentineUseCases {
-	return &ValentineUseCases{repo: repo}
+// NewValentineUseCases создает новый use case
+func NewValentineUseCases(repo repositories.ValentineRepository, log *slog.Logger) *ValentineUseCases {
+	return &ValentineUseCases{
+		repo: repo,
+		log:  log.With("component", "valentine_usecases"),
+	}
 }
 
-// сценарий сохранения в БД валентинки и уведомления о ней получателя
-func (u *ValentineUseCases) SendValentine(
+// SendValentine отправляет валентинку
+func (uc *ValentineUseCases) SendValentine(
 	ctx context.Context,
 	senderID int,
 	recipientLink string,
 	message string,
 	isAnonymous bool,
 	imageType string,
+	photoURL string,
 ) (*domain.Valentine, error) {
+	uc.log.Debug("Отправка валентинки",
+		"sender_id", senderID,
+		"recipient_link", recipientLink,
+		"is_anonymous", isAnonymous,
+		"image_type", imageType)
+
 	// Парсим ID получателя из ссылки
-	recipientID, err := u.parseRecipientID(recipientLink)
+	recipientID, err := uc.parseRecipientID(recipientLink)
 	if err != nil {
+		uc.log.Error("Ошибка парсинга получателя", "error", err)
 		return nil, fmt.Errorf("ошибка парсинга получателя: %w", err)
 	}
 
 	// Проверяем, что отправитель не отправляет себе
 	if senderID == recipientID {
-		return nil, fmt.Errorf("нельзя отправить валентинку самому себе")
+		err := fmt.Errorf("нельзя отправить валентинку самому себе")
+		uc.log.Error("Попытка отправить валентинку себе", "error", err)
+		return nil, err
 	}
 
 	// Создаем валентинку
 	valentine := &domain.Valentine{
-		// ID:          uuid.New().String(),
+		ID:          uuid.New().String(),
 		SenderID:    senderID,
 		RecipientID: recipientID,
 		Message:     message,
-		// ImageType:   imageType,
+		ImageType:   imageType,
+		PhotoURL:    photoURL,
 		IsAnonymous: isAnonymous,
-		// CreatedAt:   time.Now(),
-		// SentAt:      nil, // Будет отправлено 14 февраля
-		// Opened:      false,
+		Opened:      false,
 	}
 
 	// Сохраняем в БД
-	if err := u.repo.Create(ctx, valentine); err != nil {
+	if err := uc.repo.Create(ctx, valentine); err != nil {
+		uc.log.Error("Ошибка сохранения валентинки", "error", err)
 		return nil, fmt.Errorf("ошибка сохранения валентинки: %w", err)
 	}
+
+	uc.log.Info("Валентинка создана",
+		"valentine_id", valentine.ID,
+		"sender_id", senderID,
+		"recipient_id", recipientID)
 
 	return valentine, nil
 }
 
-// сценарий просмотра полученный сообщений
-func (u *ValentineUseCases) GetReceivedValentines(ctx context.Context, userID int) ([]*domain.Valentine, error) {
-	// Проверяем дату
+// GetSentValentines возвращает отправленные валентинки пользователя
+func (uc *ValentineUseCases) GetSentValentines(ctx context.Context, userID int) ([]*domain.Valentine, error) {
+	uc.log.Debug("Получение отправленных валентинок", "user_id", userID)
 
-	valentines, err := u.repo.GetAllReciever(ctx, userID)
+	valentines, err := uc.repo.FindBySender(ctx, userID)
 	if err != nil {
+		uc.log.Error("Ошибка получения отправленных валентинок",
+			"user_id", userID,
+			"error", err)
 		return nil, err
 	}
+
+	uc.log.Debug("Найдено отправленных валентинок",
+		"user_id", userID,
+		"count", len(valentines))
 
 	return valentines, nil
 }
 
-// сценарий просмотра отправленных сообщений
-// GetSentValentines возвращает отправленные валентинки пользователя
-func (u *ValentineUseCases) GetSentValentines(ctx context.Context, userID int) ([]*domain.Valentine, error) {
-	return u.repo.GetAllSender(ctx, userID)
-}
+// GetReceivedValentines возвращает полученные валентинки пользователя
+func (uc *ValentineUseCases) GetReceivedValentines(ctx context.Context, userID int) ([]*domain.Valentine, error) {
+	uc.log.Debug("Получение полученных валентинок", "user_id", userID)
 
-// вспомогательная функция парсинга
-func (u *ValentineUseCases) parseRecipientID(link string) (int, error) {
-	// Убираем пробелы
-	link = strings.TrimSpace(link)
-
-	// Если это уже число
-	var recipientID int
-	_, err := fmt.Sscanf(link, "%d", &recipientID)
-	if err == nil && recipientID > 0 {
-		return recipientID, nil
+	// Получаем только отправленные валентинки
+	valentines, err := uc.repo.FindByRecipient(ctx, userID, false)
+	if err != nil {
+		uc.log.Error("Ошибка получения полученных валентинок",
+			"user_id", userID,
+			"error", err)
+		return nil, err
 	}
 
-	// Пробуем извлечь из ссылки vk.com
-	// Примеры: https://vk.com/id123456, vk.com/id123456, @id123456
-
-	// Ищем "id" в ссылке
-	link = strings.ToLower(link)
-
-	// Пробуем разные форматы
-	patterns := []string{
-		"vk.com/id",
-		"vk.com/",
-		"id",
-		"@",
+	// Фильтруем только те, которые можно просматривать
+	var viewableValentines []*domain.Valentine
+	for _, v := range valentines {
+		if v.CanBeViewedByRecipient() {
+			viewableValentines = append(viewableValentines, v)
+		}
 	}
 
-	for _, pattern := range patterns {
-		if idx := strings.LastIndex(link, pattern); idx != -1 {
-			idStr := link[idx+len(pattern):]
-			// Убираем все нецифры
-			idStr = strings.Map(func(r rune) rune {
-				if r >= '0' && r <= '9' {
-					return r
-				}
-				return -1
-			}, idStr)
+	uc.log.Debug("Найдено полученных валентинок",
+		"user_id", userID,
+		"total", len(valentines),
+		"viewable", len(viewableValentines))
 
-			if len(idStr) > 0 {
-				fmt.Sscanf(idStr, "%d", &recipientID)
-				if recipientID > 0 {
-					return recipientID, nil
-				}
+	//	 Помечаем валентинки как открытые
+	for _, v := range viewableValentines {
+		if !v.Opened {
+			if err := uc.repo.MarkAsOpened(ctx, v.ID); err != nil {
+				uc.log.Warn("Ошибка пометки валентинки как открытой",
+					"valentine_id", v.ID,
+					"error", err)
 			}
 		}
 	}
 
-	return 0, fmt.Errorf("не удалось распознать ID получателя")
+	return viewableValentines, nil
 }
 
 // CanViewReceived проверяет, можно ли просматривать полученные валентинки сегодня
-func (u *ValentineUseCases) CanViewReceived() bool {
+func (uc *ValentineUseCases) CanViewReceived() bool {
 	now := time.Now()
-	return now.Month() == time.February && now.Day() == 11 // 14 February
+	canView := now.Month() == time.February && now.Day() >= 14
+
+	uc.log.Debug("Проверка возможности просмотра полученных валентинок",
+		"current_date", now.Format("2006-01-02"),
+		"can_view", canView)
+
+	return canView
+}
+
+// GetStats возвращает статистику пользователя
+func (uc *ValentineUseCases) GetStats(ctx context.Context, userID int) (int, int, error) {
+	return uc.repo.GetStats(ctx, userID)
+}
+
+// GetUnsentValentines возвращает неотправленные валентинки
+func (uc *ValentineUseCases) GetUnsentValentines(ctx context.Context) ([]*domain.Valentine, error) {
+	return uc.repo.FindUnsent(ctx)
+}
+
+// MarkValentineAsSent помечает валентинку как отправленную
+func (uc *ValentineUseCases) MarkValentineAsSent(ctx context.Context, id string) error {
+	return uc.repo.MarkAsSent(ctx, id)
+}
+
+// UpdateValentinePhoto обновляет фото валентинки
+func (uc *ValentineUseCases) UpdateValentinePhoto(ctx context.Context, id string, photoURL string) error {
+	return uc.repo.UpdatePhotoURL(ctx, id, photoURL)
+}
+
+func (uc *ValentineUseCases) parseRecipientID(link string) (int, error) {
+	link = strings.TrimSpace(link)
+	// Удаляем протокол и домен
+	link = strings.TrimPrefix(link, "https://")
+	link = strings.TrimPrefix(link, "http://")
+	link = strings.TrimPrefix(link, "vk.com/")
+	link = strings.TrimPrefix(link, "m.vk.com/")
+	link = strings.TrimPrefix(link, "@")
+	link = strings.TrimPrefix(link, "id")
+	link = strings.TrimPrefix(link, "club") // для групп, но нам нужны пользователи
+
+	// Теперь link должен содержать только цифры
+	var id int
+	_, err := fmt.Sscanf(link, "%d", &id)
+	if err != nil || id <= 0 {
+		uc.log.Warn("Не удалось распарсить ID", "input", link)
+		// Возвращаем 0, чтобы вызвать ошибку
+		return 0, fmt.Errorf("некорректный ID получателя: %s", link)
+	}
+	return id, nil
 }

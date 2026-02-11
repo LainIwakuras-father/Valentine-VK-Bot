@@ -4,6 +4,7 @@ go 1.25.6
 
 require (
 	github.com/SevereCloud/vksdk/v3 v3.2.2
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1

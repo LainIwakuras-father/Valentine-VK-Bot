@@ -3,18 +3,21 @@ package domain
 import (
 	"strconv"
 	"time"
-
-	"gorm.io/gorm"
+	//"gorm.io/gorm"
 )
 
 type Valentine struct {
-	gorm.Model
+	ID          string `gorm:"primaryKey"`
 	SenderID    int    `gorm:"index;not null" json:"sender_id"`
 	RecipientID int    `gorm:"index;not null" json:"recipient_id"`
 	Message     string `gorm:"type:text;not null" json:"message"`
 	ImageType   string `gorm:"size:20"`
 	ImageID     string `gorm:"size:100"`
+	PhotoURL    string `gorm:"size:500"` // Ссылка на загруженное фото
 	IsAnonymous bool   `gorm:"default:false"`
+	SentAt      *time.Time
+	// Когда была отправлена (nil = еще не отправлена)
+	Opened bool `gorm:"default:false"`
 }
 
 // TableName задает имя таблицы в БД
@@ -43,4 +46,34 @@ func (v *Valentine) FormatMessage() string {
 		message = message[:100] + "..."
 	}
 	return message
+}
+
+// IsSent проверяет, отправлена ли валентинка
+func (v *Valentine) IsSent() bool {
+	return v.SentAt != nil
+}
+
+// CanBeViewedByRecipient проверяет, может ли получатель просмотреть валентинку
+func (v *Valentine) CanBeViewedByRecipient() bool {
+	if !v.IsSent() {
+		return false // Не отправлена
+	}
+
+	// Можно просматривать, если отправлена 14 февраля или позже
+	sentDate := v.SentAt
+	if sentDate == nil {
+		return false
+	}
+
+	// Если сегодня 14 февраля или позже, чем дата отправки
+	now := time.Now()
+
+	// Проверяем, что валентинка отправлена в этом году и можно просматривать после 14 февраля
+	if sentDate.Year() == now.Year() {
+		// Можно просматривать с 14 февраля
+		viewingStart := time.Date(sentDate.Year(), time.February, 14, 0, 0, 0, 0, sentDate.Location())
+		return now.After(viewingStart) || now.Equal(viewingStart)
+	}
+
+	return true // Если отправлена в прошлом году, можно смотреть
 }

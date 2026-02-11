@@ -1,20 +1,14 @@
 package vk
 
 import (
-	"log"
-
 	"github.com/SevereCloud/vksdk/v3/api"
 	"github.com/SevereCloud/vksdk/v3/object"
 )
 
-// SendMessage отправляет простое сообщение
-func SendMessage(vk *api.VK, userID int, message string) error {
-	return SendKeyboard(vk, userID, message, nil)
-}
-
+// SendKeyboard отправляет сообщение с клавиатурой
 func SendKeyboard(vk *api.VK, userID int, message string, keyboard *object.MessagesKeyboard) error {
 	params := api.Params{
-		"peer_id":   userID,
+		"user_id":   userID,
 		"message":   message,
 		"random_id": 0,
 	}
@@ -24,12 +18,15 @@ func SendKeyboard(vk *api.VK, userID int, message string, keyboard *object.Messa
 	}
 
 	_, err := vk.MessagesSend(params)
-	if err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
-	}
 	return err
 }
 
+// SendMessage отправляет простое сообщение без клавиатуры
+func SendMessage(vk *api.VK, userID int, message string) error {
+	return SendKeyboard(vk, userID, message, nil)
+}
+
+// NewStartKeyboard создает клавиатуру главного меню
 func NewStartKeyboard() *object.MessagesKeyboard {
 	return &object.MessagesKeyboard{
 		OneTime: false,
@@ -40,7 +37,7 @@ func NewStartKeyboard() *object.MessagesKeyboard {
 						Type:  "text",
 						Label: "💌 Отправить валентинку",
 					},
-					Color: "positive",
+					Color: "primary",
 				},
 			},
 			{
@@ -49,20 +46,21 @@ func NewStartKeyboard() *object.MessagesKeyboard {
 						Type:  "text",
 						Label: "📤 Мои отправленные",
 					},
-					Color: "primary",
+					Color: "secondary",
 				},
 				{
 					Action: object.MessagesKeyboardButtonAction{
 						Type:  "text",
 						Label: "📥 Мои полученные",
 					},
-					Color: "primary",
+					Color: "secondary",
 				},
 			},
 		},
 	}
 }
 
+// NewAnonymityKeyboard создает клавиатуру для выбора анонимности
 func NewAnonymityKeyboard() *object.MessagesKeyboard {
 	return &object.MessagesKeyboard{
 		OneTime: true,
@@ -73,6 +71,38 @@ func NewAnonymityKeyboard() *object.MessagesKeyboard {
 						Type:  "text",
 						Label: "Да",
 					},
+					Color: "positive",
+				},
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "Нет",
+					},
+					Color: "negative",
+				},
+			},
+		},
+	}
+}
+
+// NewPremadeKeyboard создает клавиатуру с готовыми валентинками
+func NewPremadeKeyboard() *object.MessagesKeyboard {
+	return &object.MessagesKeyboard{
+		OneTime: true,
+		Buttons: [][]object.MessagesKeyboardButton{
+			{
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "💝 Валентинка 1",
+					},
+					Color: "primary",
+				},
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "💘 Валентинка 2",
+					},
 					Color: "primary",
 				},
 			},
@@ -80,15 +110,23 @@ func NewAnonymityKeyboard() *object.MessagesKeyboard {
 				{
 					Action: object.MessagesKeyboardButtonAction{
 						Type:  "text",
-						Label: "Нет",
+						Label: "💖 Валентинка 3",
 					},
-					Color: "secondary",
+					Color: "primary",
+				},
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "💗 Валентинка 4",
+					},
+					Color: "primary",
 				},
 			},
 		},
 	}
 }
 
+// NewValentineTypeKeyboard создает клавиатуру для выбора типа валентинки (без отдельного фото)
 func NewValentineTypeKeyboard() *object.MessagesKeyboard {
 	return &object.MessagesKeyboard{
 		OneTime: true,
@@ -115,49 +153,45 @@ func NewValentineTypeKeyboard() *object.MessagesKeyboard {
 	}
 }
 
-func NewPremadeImagesKeyboard(images []map[string]string) *object.MessagesKeyboard {
-	buttons := make([][]object.MessagesKeyboardButton, 0)
-
-	// Группируем по 2 кнопки в ряд
-	for i := 0; i < len(images); i += 2 {
-		row := make([]object.MessagesKeyboardButton, 0)
-
-		// Первая кнопка в ряду
-		row = append(row, object.MessagesKeyboardButton{
-			Action: object.MessagesKeyboardButtonAction{
-				Type:  "text",
-				Label: images[i]["description"],
-			},
-			Color: "secondary",
-		})
-
-		// Вторая кнопка в ряду (если есть)
-		if i+1 < len(images) {
-			row = append(row, object.MessagesKeyboardButton{
-				Action: object.MessagesKeyboardButtonAction{
-					Type:  "text",
-					Label: images[i+1]["description"],
-				},
-				Color: "secondary",
-			})
-		}
-
-		buttons = append(buttons, row)
-	}
-
-	// Добавляем кнопку "Назад"
-	buttons = append(buttons, []object.MessagesKeyboardButton{
-		{
-			Action: object.MessagesKeyboardButtonAction{
-				Type:  "text",
-				Label: "« Назад",
-			},
-			Color: "negative",
-		},
-	})
-
+// NewPhotoAfterTextKeyboard — клавиатура для добавления фото после ввода текста
+func NewPhotoAfterTextKeyboard() *object.MessagesKeyboard {
 	return &object.MessagesKeyboard{
 		OneTime: true,
-		Buttons: buttons,
+		Buttons: [][]object.MessagesKeyboardButton{
+			{
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "📷 Добавить фото",
+					},
+					Color: "primary",
+				},
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "⏭ Отправить без фото",
+					},
+					Color: "secondary",
+				},
+			},
+		},
+	}
+}
+
+// NewCancelKeyboard создает клавиатуру с кнопкой отмены
+func NewCancelKeyboard() *object.MessagesKeyboard {
+	return &object.MessagesKeyboard{
+		OneTime: true,
+		Buttons: [][]object.MessagesKeyboardButton{
+			{
+				{
+					Action: object.MessagesKeyboardButtonAction{
+						Type:  "text",
+						Label: "❌ Отмена",
+					},
+					Color: "negative",
+				},
+			},
+		},
 	}
 }

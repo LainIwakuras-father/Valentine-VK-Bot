@@ -8,58 +8,119 @@ import (
 	"gorm.io/gorm"
 )
 
-// Методы взаимодействия с базой данных
-type Repository interface {
+// ValentineRepository интерфейс репозитория для работы с валентинками
+type ValentineRepository interface {
 	Create(ctx context.Context, valentine *domain.Valentine) error
-	GetAllSender(ctx context.Context, senderID int) ([]*domain.Valentine, error)
-	GetAllReciever(ctx context.Context, recieverID int) ([]*domain.Valentine, error)
-	Exist(ctx context.Context, senderID, recieverID, date time.Time) (bool, error)
+	FindByID(ctx context.Context, id string) (*domain.Valentine, error)
+	FindBySender(ctx context.Context, senderID int) ([]*domain.Valentine, error)
+	FindByRecipient(ctx context.Context, recipientID int, includeUnsent bool) ([]*domain.Valentine, error)
+	FindUnsent(ctx context.Context) ([]*domain.Valentine, error)
+	MarkAsOpened(ctx context.Context, id string) error
+	MarkAsSent(ctx context.Context, id string) error
+	GetStats(ctx context.Context, userID int) (int, int, error)
+	UpdatePhotoURL(ctx context.Context, id string, photoURL string) error
 }
 
+// GORMValentineRepository реализация репозитория на GORM
 type GORMValentineRepository struct {
 	db *gorm.DB
 }
 
-// NewGORMValentineRepo создает новый экземпляр репозитория
-func NewGORMValentineRepo(db *gorm.DB) *GORMValentineRepository {
+// NewGORMValentineRepo создает новый репозиторий
+func NewGORMValentineRepo(db *gorm.DB) ValentineRepository {
 	return &GORMValentineRepository{db: db}
 }
 
-func (g *GORMValentineRepository) Create(ctx context.Context, valentine *domain.Valentine) error {
-	return g.db.WithContext(ctx).Create(valentine).Error
+// Create создает новую валентинку
+func (r *GORMValentineRepository) Create(ctx context.Context, valentine *domain.Valentine) error {
+	return r.db.WithContext(ctx).Create(valentine).Error
 }
 
-func (g *GORMValentineRepository) GetAllSender(ctx context.Context, senderID int) ([]*domain.Valentine, error) {
+// FindByID находит валентинку по ID
+func (r *GORMValentineRepository) FindByID(ctx context.Context, id string) (*domain.Valentine, error) {
+	var valentine domain.Valentine
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&valentine).Error
+	if err != nil {
+		return nil, err
+	}
+	return &valentine, nil
+}
+
+// FindBySender находит валентинки по отправителю
+func (r *GORMValentineRepository) FindBySender(ctx context.Context, senderID int) ([]*domain.Valentine, error) {
 	var valentines []*domain.Valentine
-	err := g.db.WithContext(ctx).
+	err := r.db.WithContext(ctx).
 		Where("sender_id = ?", senderID).
-		// Order("sent_at DESC").
+		// Order("created_at DESC").
 		Find(&valentines).Error
-
 	return valentines, err
 }
 
-func (g *GORMValentineRepository) GetAllReciever(ctx context.Context, recieverID int) ([]*domain.Valentine, error) {
+// FindByRecipient находит валентинки по получателю
+// includeUnsent - включать ли неотправленные валентинки
+func (r *GORMValentineRepository) FindByRecipient(ctx context.Context, recipientID int, includeUnsent bool) ([]*domain.Valentine, error) {
 	var valentines []*domain.Valentine
-	err := g.db.WithContext(ctx).
-		Where("recipient_id = ?", recieverID).
-		// Order("sent_at DESC").
-		Find(&valentines).Error
+	query := r.db.WithContext(ctx).
+		Where("recipient_id = ?", recipientID)
 
+	if !includeUnsent {
+		query = query.Where("sent_at IS NOT NULL")
+	}
+	// Order("created_at DESC")
+	err := query.Find(&valentines).Error
 	return valentines, err
 }
 
-func (g *GORMValentineRepository) Exist(ctx context.Context, senderID, receiverID int, date time.Time) (bool, error) {
-	var count int64
-	// startOfDay := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	// endOfDay := startOfDay.Add(24 * time.Hour)
+// FindUnsent находит все неотправленные валентинки
+func (r *GORMValentineRepository) FindUnsent(ctx context.Context) ([]*domain.Valentine, error) {
+	var valentines []*domain.Valentine
+	err := r.db.WithContext(ctx).
+		Where("sent_at IS NULL").
+		Find(&valentines).Error
+	return valentines, err
+}
 
-	err := g.db.WithContext(ctx).Model(&domain.Valentine{}).
-		// Where("sender_id = ? AND recipient_id = ? AND sent_at >= ? AND sent_at < ?",
-		Where("sender_id = ? AND recipient_id = ?",
-			senderID, receiverID).
-		// senderID, receiverID, startOfDay, endOfDay).
-		Count(&count).Error
+// MarkAsOpened помечает валентинку как открытую
+func (r *GORMValentineRepository) MarkAsOpened(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.Valentine{}).
+		Where("id = ?", id).
+		Update("opened", true).Error
+}
 
-	return count > 0, err
+// MarkAsSent помечает валентинку как отправленную
+func (r *GORMValentineRepository) MarkAsSent(ctx context.Context, id string) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).
+		Model(&domain.Valentine{}).
+		Where("id = ?", id).
+		Update("sent_at", now).Error
+}
+
+// GetStats возвращает статистику пользователя
+func (r *GORMValentineRepository) GetStats(ctx context.Context, userID int) (int, int, error) {
+	var sentCount int64
+	err := r.db.WithContext(ctx).
+		Model(&domain.Valentine{}).
+		Where("sender_id = ?", userID).
+		Count(&sentCount).Error
+	if err != nil {
+		return 0, 0, err
+	}
+
+	var receivedCount int64
+	err = r.db.WithContext(ctx).
+		Model(&domain.Valentine{}).
+		Where("recipient_id = ? AND sent_at IS NOT NULL", userID).
+		Count(&receivedCount).Error
+
+	return int(sentCount), int(receivedCount), err
+}
+
+// UpdatePhotoURL обновляет URL фото валентинки
+func (r *GORMValentineRepository) UpdatePhotoURL(ctx context.Context, id string, photoURL string) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.Valentine{}).
+		Where("id = ?", id).
+		Update("photo_url", photoURL).Error
 }
