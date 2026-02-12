@@ -52,7 +52,7 @@ func main() {
 	repo := repositories.NewGORMValentineRepo(db)
 	vk := api.NewVK(token)
 	log.Info("Иницилизируем бота...")
-	lp, err := longpoll.NewLongPoll(vk, 76196673)
+	lp, err := longpoll.NewLongPoll(vk, 235791902) // номер тестового сообщества
 	if err != nil {
 		log.Error("Ошибка инициализации LongPoll:", err)
 		panic(err)

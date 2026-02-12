@@ -3,7 +3,10 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +46,7 @@ func (h *ValentineHandler) Handle(ctx context.Context, obj events.MessageNewObje
 	attachments := obj.Message.Attachments
 
 	// Глобальная отмена
-	if text == "❌ Отмена" {
+	if text == "❌ Отмена" || text == "отмена" || text == "Отмена" {
 		h.stateManager.ClearState(userID)
 		vkkeyboard.SendKeyboard(h.vk, userID, "❌ Отправка отменена.", vkkeyboard.NewStartKeyboard())
 		return true
@@ -59,8 +62,6 @@ func (h *ValentineHandler) Handle(ctx context.Context, obj events.MessageNewObje
 		return h.handleRecipient(ctx, userID, text, data)
 	case "waiting_valentine_type":
 		return h.handleValentineType(ctx, userID, text, data)
-	case "waiting_premade":
-		return h.handlePremade(ctx, userID, text, data)
 	case "waiting_custom_text":
 		return h.handleCustomText(ctx, userID, text, data)
 	case "waiting_photo_after_text":
@@ -69,6 +70,8 @@ func (h *ValentineHandler) Handle(ctx context.Context, obj events.MessageNewObje
 		return h.handlePhotoURL(ctx, userID, text, data)
 	case "waiting_custom_text_and_photo":
 		return h.handleCustomTextAndPhoto(ctx, userID, text, attachments, data)
+	case "waiting_premade_choice":
+		return h.handlePremadeChoice(ctx, userID, text, data)
 	}
 
 	// Команды без состояния
@@ -119,11 +122,32 @@ func (h *ValentineHandler) handleRecipient(ctx context.Context, userID int, text
 	return true
 }
 
+// Предопределённые attachment'ы готовых валентинок
+// Предопределённые attachment'ы готовых валентинок
+var templateAttachments = []string{
+	"photo-235791902_457239022", // замените на реальные ID фото из вашего сообщества
+	"photo-235791902_457239021",
+	"photo-235791902_457239020",
+	"photo-235791902_457239019",
+}
+
 // 3. Тип валентинки
 func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, text string, data map[string]interface{}) bool {
 	switch text {
 	case "Заготовленная":
-		h.stateManager.SetState(userID, "waiting_premade")
+		h.stateManager.SetState(userID, "waiting_premade_choice")
+
+		// Сохраняем список attachment'ов в состояние пользователя
+		h.stateManager.SetData(userID, "template_attachments", templateAttachments)
+
+		// 1. Отправляем сообщение со всеми 5 фото
+		attachments := strings.Join(templateAttachments, ",")
+		if err := vkkeyboard.SendPhotoMessage(h.vk, userID,
+			"🖼️ Вот доступные дизайны валентинок.\nВыберите номер понравившейся:",
+			attachments); err != nil {
+			h.log.Error("Ошибка отправки фото", "error", err)
+		}
+
 		vkkeyboard.SendKeyboard(h.vk, userID, "Выберите готовую валентинку:", vkkeyboard.NewTemplateKeyboard())
 		return true
 	case "Собственная":
@@ -138,28 +162,41 @@ func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, 
 	}
 }
 
-// Предопределённые attachment'ы готовых валентинок
-var templateAttachments = map[string]string{
-	"💝 1": "photo-123456_789012", // замените на реальные ID фото из вашего сообщества
-	"💘 2": "photo-123456_789013",
-	"💖 3": "photo-123456_789014",
-	"💗 4": "photo-123456_789015",
-}
-
-func (h *ValentineHandler) handlePremade(ctx context.Context, userID int, text string, data map[string]interface{}) bool {
-	// Если текст — одна из кнопок шаблона
-	if attachment, ok := templateAttachments[text]; ok {
-		// Берём стандартное сообщение для этого шаблона
-		message := "С Днём Святого Валентина! ❤️"
-		h.finishValentineSending(ctx, userID, data, message, "template", attachment)
+// выбор номера картинки
+func (h *ValentineHandler) handlePremadeChoice(ctx context.Context, userID int, text string, data map[string]interface{}) bool {
+	// Получаем сохранённый список attachment'ов
+	raw, ok := data["template_attachments"]
+	if !ok {
+		h.log.Error("Не найден список attachment'ов", "user_id", userID)
+		vkkeyboard.SendKeyboard(h.vk, userID, "❌ Ошибка, начните заново.", vkkeyboard.NewStartKeyboard())
+		h.stateManager.ClearState(userID)
+		return true
+	}
+	attachments, ok := raw.([]string)
+	if !ok {
+		h.log.Error("Неверный формат списка attachment'ов", "user_id", userID)
+		vkkeyboard.SendKeyboard(h.vk, userID, "❌ Ошибка, начните заново.", vkkeyboard.NewStartKeyboard())
+		h.stateManager.ClearState(userID)
 		return true
 	}
 
-	// Иначе показываем клавиатуру шаблонов
-	h.stateManager.SetState(userID, "waiting_premade")
-	vkkeyboard.SendKeyboard(h.vk, userID,
-		"Выберите дизайн валентинки:",
-		vkkeyboard.NewTemplateKeyboard())
+	// Парсим цифру
+	index, err := strconv.Atoi(text)
+	if err != nil || index < 1 || index > len(attachments) {
+		vkkeyboard.SendKeyboard(h.vk, userID,
+			fmt.Sprintf("❌ Введите цифру от 1 до %d:", len(attachments)),
+			vkkeyboard.NewTemplateKeyboard())
+		return true
+	}
+
+	// Выбранный attachment
+	selected := attachments[index-1]
+
+	// Стандартное сообщение (можно сделать разные под каждую картинку, если нужно)
+	message := "С Днём Святого Валентина! ❤️"
+
+	// Сохраняем валентинку
+	h.finishValentineSending(ctx, userID, data, message, "template", selected)
 	return true
 }
 
@@ -232,12 +269,25 @@ func (h *ValentineHandler) handleCustomTextAndPhoto(ctx context.Context, userID 
 	var photoAttachment string
 	for _, att := range attachments {
 		if att.Type == "photo" {
-			photoAttachment = fmt.Sprintf("photo%d_%d", att.Photo.OwnerID, att.Photo.ID)
-			h.log.Info("Получено фото-вложение", "attachment", photoAttachment)
+			//	h.log.Info("Получено фото-вложение", "attachment", original)
+			// 🚀 ПЕРЕЗАЛИВАЕМ ФОТО
+			newAttachment, err := h.reuploadUserPhoto(ctx, &att.Photo) // большой файл сучка надо лучше передавать указатель
+			if err != nil {
+				h.log.Error("Ошибка перезаливки фото", "error", err)
+				// Сообщаем пользователю, но сохраняем валентинку без фото
+				vkkeyboard.SendMessage(h.vk, userID, "⚠️ Не удалось обработать фото. Валентинка сохранена без фото.")
+				photoAttachment = ""
+			} else {
+				photoAttachment = newAttachment
+				h.log.Info("Фото перезалито", "new", photoAttachment)
+			}
 			break
 		}
 	}
 
+	h.log.Info("Сохранение валентинки",
+		"has_photo", photoAttachment != "",
+		"photo_attachment", photoAttachment)
 	// 3. Если фото нет, просто продолжаем без него
 	h.finishValentineSending(ctx, userID, data, text, "custom", photoAttachment)
 	return true
@@ -311,23 +361,29 @@ func (h *ValentineHandler) handleViewSent(ctx context.Context, userID int) {
 		return
 	}
 
-	message := "📤 Ваши отправленные валентинки:\n\n"
+	message := "📤 Вот все ваши отправленные валентинки!\n\n"
 	for i, v := range valentines {
-		status := "⏳ Ожидает 14 февраля"
-		if v.IsSent() {
-			status = fmt.Sprintf("✅ Отправлена %s", v.SentAt.Format("02.01.2006"))
-		}
-		anon := "👤 Открыто"
+		// Формируем текст сообщения
+		msg := fmt.Sprintf("📤 Отправленная валентинка #%d\n", i+1)
+		msg += fmt.Sprintf("👤 Кому: %s\n", v.GetRecipientDisplay())
+		msg += fmt.Sprintf("💌 Сообщение: %s\n", v.Message)
 		if v.IsAnonymous {
-			anon = "🎭 Анонимно"
+			msg += "🎭 Анонимно\n"
+		} else {
+			msg += "👤 От вашего имени\n"
 		}
-		message += fmt.Sprintf("%d. Для ID%d\n", i+1, v.RecipientID)
-		message += fmt.Sprintf("   💌 %s\n", v.FormatMessage())
-		message += fmt.Sprintf("   %s | %s\n\n", anon, status)
-	}
 
-	sent, received, _ := h.service.GetStats(ctx, userID)
-	message += fmt.Sprintf("📊 Статистика: отправлено %d, получено %d", sent, received)
+		// если с фото то оправить с фото если нет то обычное сообщение
+		if v.PhotoURL != "" {
+			vkkeyboard.SendPhotoMessage(h.vk, userID, msg, v.PhotoURL)
+		} else if err = vkkeyboard.SendMessage(h.vk, userID, msg); err != nil {
+			h.log.Error("Ошибка отправки сообщения с валентинкой",
+				"valentine_id", v.ID, "error", err)
+		}
+		// Небольшая задержка, чтобы не флудить
+		time.Sleep(300 * time.Millisecond)
+
+	}
 
 	vkkeyboard.SendKeyboard(h.vk, userID, message, vkkeyboard.NewStartKeyboard())
 }
@@ -336,11 +392,7 @@ func (h *ValentineHandler) handleViewSent(ctx context.Context, userID int) {
 
 func (h *ValentineHandler) handleViewReceived(ctx context.Context, userID int) {
 	if !h.service.CanViewReceived() {
-		//	now := time.Now()
-		//	next := time.Date(now.Year()+1, time.February, 14, 0, 0, 0, 0, now.Location())
-		//	days := int(next.Sub(now).Hours() / 24)
 		msg := fmt.Sprintf("📅 Полученные валентинки можно посмотреть только с 14 февраля!")
-		// ⏳ Осталось %d дней."), days)
 		vkkeyboard.SendKeyboard(h.vk, userID, msg, vkkeyboard.NewStartKeyboard())
 		return
 	}
@@ -363,23 +415,28 @@ func (h *ValentineHandler) handleViewReceived(ctx context.Context, userID int) {
 		return
 	}
 
-	msg := "📥 Ваши полученные валентинки:\n\n"
+	msg := "📥 вот все ваши полученные валентинки!\n\n"
 	for i, v := range valentines {
-		msg += fmt.Sprintf("%d. От %s\n", i+1, v.GetSenderDisplay())
-		msg += fmt.Sprintf("   💌 %s\n", v.Message)
+		msg := fmt.Sprintf("📥 Полученная валентинка #%d\n", i+1)
+		msg += fmt.Sprintf("🎁 От: %s\n", v.GetSenderDisplay())
+		msg += fmt.Sprintf("💌 %s\n", v.Message)
+		h.log.Info("Вот такой урл фото", "URL", v.PhotoURL)
+		// если с фото то оправить с фото если нет то обычное сообщение
 		if v.PhotoURL != "" {
-			msg += "   📷 С фото\n"
+			vkkeyboard.SendPhotoMessage(h.vk, userID, msg, v.PhotoURL)
+		} else if err = vkkeyboard.SendMessage(h.vk, userID, msg); err != nil {
+			h.log.Error("Ошибка отправки сообщения с валентинкой",
+				"valentine_id", v.ID, "error", err)
 		}
-		if v.SentAt != nil {
-			msg += fmt.Sprintf("   🕐 %s\n\n", v.SentAt.Format("02.01.2006"))
-		}
+		// Небольшая задержка, чтобы не флудить
+		time.Sleep(300 * time.Millisecond)
+
 	}
 	msg += "💖 С Днём Святого Валентина!"
 	vkkeyboard.SendKeyboard(h.vk, userID, msg, vkkeyboard.NewStartKeyboard())
 }
 
 // ------------------- ТЕСТОВАЯ КОМАНДА (для админов) -------------------
-
 func (h *ValentineHandler) handleTestSendAll(ctx context.Context, userID int) {
 	h.log.Info("Ручная отправка всех валентинок", "initiated_by", userID)
 
@@ -411,4 +468,91 @@ func (h *ValentineHandler) startValentineSending(userID int) {
 	vkkeyboard.SendKeyboard(h.vk, userID,
 		"Анонимная валентинка?",
 		vkkeyboard.NewAnonymityKeyboard())
+}
+
+// --------------ЗАГРУЗКА ФОТО ------
+// reuploadUserPhoto скачивает фото по attachment, загружает на сервер сообщений и возвращает новый attachment
+func (h *ValentineHandler) reuploadUserPhoto(ctx context.Context, photo *object.PhotosPhoto) (string, error) {
+	h.log.Info("Начинаем перезаливку фото")
+
+	// 1. Получаем URL оригинального фото
+	// 1. Получаем URL самого большого размера
+	if len(photo.Sizes) == 0 {
+		return "", fmt.Errorf("нет доступных размеров фото")
+	}
+	largest := photo.Sizes[len(photo.Sizes)-1]
+	photoURL := largest.URL
+	h.log.Info("Скачиваем фото", "url", photoURL)
+
+	// 2. Скачиваем фото
+	resp, err := http.Get(photoURL)
+	if err != nil {
+		return "", fmt.Errorf("ошибка скачивания: %w", err)
+	}
+	defer resp.Body.Close()
+	photoBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("ошибка чтения: %w", err)
+	}
+
+	// 3. Получаем сервер для загрузки в сообщения
+	uploadServer, err := h.vk.PhotosGetMessagesUploadServer(api.Params{})
+	if err != nil {
+		return "", fmt.Errorf("ошибка получения upload server: %w", err)
+	}
+
+	// 4. Загружаем фото на сервер
+	uploadResp, err := vkkeyboard.UploadPhotoToServer(uploadServer.UploadURL, photoBytes)
+	if err != nil {
+		return "", fmt.Errorf("ошибка загрузки на сервер: %w", err)
+	}
+
+	// 5. Сохраняем фото в сообществе
+	savedPhotos, err := h.vk.PhotosSaveMessagesPhoto(api.Params{
+		"photo":  uploadResp.Photo,
+		"server": uploadResp.Server,
+		"hash":   uploadResp.Hash,
+	})
+	if err != nil {
+		return "", fmt.Errorf("ошибка сохранения фото: %w", err)
+	}
+	if len(savedPhotos) == 0 {
+		return "", fmt.Errorf("фото не сохранилось")
+	}
+
+	// 6. Формируем новый attachment
+	newAttachment := fmt.Sprintf("photo%d_%d", savedPhotos[0].OwnerID, savedPhotos[0].ID)
+	h.log.Info("Фото успешно перезалито",
+		"old", fmt.Sprintf("photo%d_%d", photo.OwnerID, photo.ID),
+		"new", newAttachment,
+		"owner_id", savedPhotos[0].OwnerID)
+	return newAttachment, nil
+}
+
+// getPhotoURLByAttachment — получает прямую ссылку на фото (самый большой размер)
+func (h *ValentineHandler) getPhotoURLByAttachment(attachment string) (string, error) {
+	trimmed := strings.TrimPrefix(attachment, "photo")
+	parts := strings.Split(trimmed, "_")
+	if len(parts) != 2 {
+		return "", fmt.Errorf("неверный формат attachment")
+	}
+	ownerID := parts[0]
+	photoID := parts[1]
+
+	photos, err := h.vk.PhotosGetByID(api.Params{
+		"photos": fmt.Sprintf("%s_%s", ownerID, photoID),
+	})
+	if err != nil {
+		return "", err
+	}
+	if len(photos) == 0 {
+		return "", fmt.Errorf("фото не найдено")
+	}
+	photo := photos[0]
+	if len(photo.Sizes) == 0 {
+		return "", fmt.Errorf("нет размеров фото")
+	}
+	// Берем последний (обычно самый большой) размер
+	largest := photo.Sizes[len(photo.Sizes)-1]
+	return largest.URL, nil
 }

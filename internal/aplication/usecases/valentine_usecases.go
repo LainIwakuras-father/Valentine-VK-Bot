@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"strconv"
+
+	//"strconv"
 	"strings"
 	"time"
 
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/domain"
 	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/storage/repositories"
+	"github.com/LainIwakuras-father/Valentine-VK-Bot/internal/infra/vk"
 	"github.com/SevereCloud/vksdk/v3/api"
 	"github.com/google/uuid"
 )
@@ -60,15 +62,20 @@ func (uc *ValentineUseCases) SendValentine(
 
 	// Проверяем, что отправитель не отправляет себе
 	if senderID == recipientID {
+
 		err := fmt.Errorf("нельзя отправить валентинку самому себе")
 		uc.log.Error("Попытка отправить валентинку себе", "error", err)
 		return nil, err
 	}
 
+	// достаем никнейм
+	screenName := vk.GetScreenName(uc.vk, senderID)
+
 	// Создаем валентинку
 	valentine := &domain.Valentine{
 		ID:                uuid.New().String(),
 		SenderID:          senderID,
+		SenderScreenName:  screenName,
 		RecipientID:       recipientID,
 		RecipientOriginal: recipientOriginal,
 		Message:           message,
@@ -90,6 +97,9 @@ func (uc *ValentineUseCases) SendValentine(
 		"recipient_id", recipientID)
 
 	return valentine, nil
+
+	// уведомляем о ней получателя чтобы заинтересовать
+
 }
 
 // GetSentValentines возвращает отправленные валентинки пользователя
@@ -137,17 +147,6 @@ func (uc *ValentineUseCases) GetReceivedValentines(ctx context.Context, userID i
 		"total", len(valentines),
 		"viewable", len(viewableValentines))
 
-	//	 Помечаем валентинки как открытые
-	//	for _, v := range viewableValentines {
-	//		if !v.Opened {
-	//			if err := uc.repo.MarkAsOpened(ctx, v.ID); err != nil {
-	//				uc.log.Warn("Ошибка пометки валентинки как открытой",
-	//					"valentine_id", v.ID,
-	//					"error", err)
-	//			}
-	//		}
-	//	}
-
 	return valentines, nil
 }
 
@@ -164,11 +163,6 @@ func (uc *ValentineUseCases) CanViewReceived() bool {
 		"can_view", canView)
 
 	return canView
-}
-
-// GetStats возвращает статистику пользователя
-func (uc *ValentineUseCases) GetStats(ctx context.Context, userID int) (int, int, error) {
-	return uc.repo.GetStats(ctx, userID)
 }
 
 // GetUnsentValentines возвращает неотправленные валентинки
@@ -188,46 +182,64 @@ func (uc *ValentineUseCases) UpdateValentinePhoto(ctx context.Context, id string
 
 // parseRecipient преобразует ссылку в ID и сохраняет оригинал
 // Всегда резолвим screen_name через VK API. При неудаче → ошибка.
+// parseRecipient преобразует ссылку в ID и сохраняет оригинал.
+// Поддерживаются любые форматы: числовой ID, id123, @durov, vk.com/durov,
+// club123, public123, app123, event123 и любые screen_name.
+// Для чисел и id123 резолв через VK API не производится.
 func (uc *ValentineUseCases) parseRecipient(link string) (recipientID int, recipientOriginal string, err error) {
 	link = strings.TrimSpace(link)
+
+	// сохраняем первоначальный введенный айди
 	recipientOriginal = link
 
-	// 1. Пробуем как числовой ID
-	if id, err := strconv.Atoi(link); err == nil && id > 0 {
-		return id, recipientOriginal, nil
-	}
+	uc.log.Info("первоначальная ссылка", link)
 
-	// 2. Извлекаем screen_name из ссылки
-	screenName := extractScreenName(link)
-	if screenName == "" {
+	// ----- 1. Прямое число -----
+	//	if id, err := strconv.Atoi(link); err == nil && id > 0 {
+	//		return id, recipientOriginal, nil
+	//	}
+
+	// ----- 2. Удаляем протоколы, домены и известные префиксы -----
+	cleaned := cleanVKLink(link)
+
+	// ----- 3. Если после очистки осталось только число -----
+	//if id, err := strconv.Atoi(cleaned); err == nil && id > 0 {
+	//	return id, recipientOriginal, nil
+	//}
+
+	// ----- 4. Если осталась непустая строка — это screen_name, резолвим -----
+	if cleaned == "" {
 		return 0, recipientOriginal, fmt.Errorf("не удалось извлечь screen_name из ссылки: %s", link)
 	}
-
-	// 3. Резолвим screen_name через VK API
+	uc.log.Info("ВОТ ТАКОЙ cleaned:", cleaned)
 	resolved, err := uc.vk.UtilsResolveScreenName(api.Params{
-		"screen_name": screenName,
+		"screen_name": cleaned,
 	})
+
+	uc.log.Info("вот резолв", resolved, resolved.ObjectID)
+
 	if err != nil {
-		return 0, recipientOriginal, fmt.Errorf("ошибка VK API при резолве %s: %w", screenName, err)
+		return 0, recipientOriginal, fmt.Errorf("ошибка VK API при резолве %s: %w", cleaned, err)
 	}
-	if resolved.Type != "user" {
-		return 0, recipientOriginal, fmt.Errorf("screen_name %s не является пользователем (тип: %s)", screenName, resolved.Type)
+	if resolved.ObjectID == 0 {
+		return 0, recipientOriginal, fmt.Errorf("screen_name %s не найден", cleaned)
 	}
 
+	// ✅ Любой тип объекта (пользователь, группа, публичка, приложение) — подходит
 	return resolved.ObjectID, recipientOriginal, nil
 }
 
-// extractScreenName — вспомогательная функция
-func extractScreenName(link string) string {
+// cleanVKLink удаляет протоколы, домены и известные префиксы,
+// оставляя только screen_name или числовой идентификатор.
+func cleanVKLink(link string) string {
+	// Удаляем протоколы
 	link = strings.TrimPrefix(link, "https://")
 	link = strings.TrimPrefix(link, "http://")
 	link = strings.TrimPrefix(link, "vk.com/")
 	link = strings.TrimPrefix(link, "m.vk.com/")
 	link = strings.TrimPrefix(link, "@")
-	link = strings.TrimPrefix(link, "id") // на случай id123
-	// после удалений остаётся либо короткое имя, либо пусто
-	if link == "" {
-		return ""
-	}
+
+	// Удаляем префиксы типов объектов
+	link = strings.TrimPrefix(link, "id")
 	return link
 }
