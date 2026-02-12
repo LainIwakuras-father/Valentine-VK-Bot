@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 
@@ -30,12 +31,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	//	groupID := os.Getenv("GROUP_ID")
-	//	if token == "" {
-	//		log.Error("Переменная окружения GROUP_ID не установлена!")
-	//		os.Exit(1)
-	//	}
-
+	groupID := os.Getenv("GROUP_ID")
+	if groupID == "" {
+		log.Error("Переменная окружения GROUP_ID не установлена!")
+		os.Exit(1)
+	}
+	// перевод в числовые значение строку с айдишником
+	// 2. Преобразуем в int
+	id, err := strconv.Atoi(groupID)
+	if err != nil {
+		log.Error("некорректный формат GROUP_ID: %w", err)
+		os.Exit(1)
+	}
 	testMode := os.Getenv("TEST_MODE") == "true"
 	log.Info("Иницилизация Базы Данных...")
 	// Инициализируем базу данных
@@ -52,7 +59,7 @@ func main() {
 	repo := repositories.NewGORMValentineRepo(db)
 	vk := api.NewVK(token)
 	log.Info("Иницилизируем бота...")
-	lp, err := longpoll.NewLongPoll(vk, 76196673)
+	lp, err := longpoll.NewLongPoll(vk, id) // номер тестового сообщества 235791902
 	if err != nil {
 		log.Error("Ошибка инициализации LongPoll:", err)
 		panic(err)
