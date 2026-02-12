@@ -322,7 +322,7 @@ func (h *ValentineHandler) finishValentineSending(ctx context.Context, userID in
 		h.log.Info("Валентинка создана", "id", valentine.ID)
 
 		// Уведомляем Пользователя о пришедщей валентинке
-		h.NotifyMassege(valentine.RecipientID)
+		//	h.NotifyMassege(valentine.RecipientID)
 	}
 	h.stateManager.ClearState(userID)
 }
