@@ -119,15 +119,6 @@ func (h *ValentineHandler) handleRecipient(ctx context.Context, userID int, text
 	return true
 }
 
-// Предопределённые attachment'ы готовых валентинок
-// Предопределённые attachment'ы готовых валентинок
-var templateAttachments = []string{
-	"photo-235791902_457239022", // замените на реальные ID фото из вашего сообщества
-	"photo-235791902_457239021",
-	"photo-235791902_457239020",
-	"photo-235791902_457239019",
-}
-
 // 3. Тип валентинки
 func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, text string, data map[string]interface{}) bool {
 	switch text {
@@ -135,10 +126,10 @@ func (h *ValentineHandler) handleValentineType(ctx context.Context, userID int, 
 		h.stateManager.SetState(userID, "waiting_premade_choice")
 
 		// Сохраняем список attachment'ов в состояние пользователя
-		h.stateManager.SetData(userID, "template_attachments", templateAttachments)
+		h.stateManager.SetData(userID, "template_attachments", vkkeyboard.TemplateAttachments)
 
 		// 1. Отправляем сообщение со всеми 5 фото
-		attachments := strings.Join(templateAttachments, ",")
+		attachments := strings.Join(vkkeyboard.TemplateAttachments, ",")
 		if err := vkkeyboard.SendPhotoMessage(h.vk, userID,
 			"🖼️ Вот доступные дизайны валентинок.\nВыберите номер понравившейся:",
 			attachments); err != nil {
