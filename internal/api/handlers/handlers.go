@@ -85,9 +85,6 @@ func (h *ValentineHandler) Handle(ctx context.Context, obj events.MessageNewObje
 	case "📥 Мои полученные":
 		h.handleViewReceived(ctx, userID)
 		return true
-	case "test_send_all":
-		h.handleTestSendAll(ctx, userID)
-		return true
 	}
 	return false
 }
@@ -206,7 +203,7 @@ func (h *ValentineHandler) handleCustomText(ctx context.Context, userID int, tex
 		vkkeyboard.SendMessage(h.vk, userID, "❌ Текст слишком длинный (макс. 500 символов). Введите короче:")
 		return true
 	}
-	if len(text) < 3 {
+	if len(text) < 1 {
 		vkkeyboard.SendMessage(h.vk, userID, "❌ Текст слишком короткий. Введите хотя бы 3 символа:")
 		return true
 	}
@@ -260,8 +257,8 @@ func (h *ValentineHandler) handlePhotoURL(ctx context.Context, userID int, text 
 // Новый обработчик
 func (h *ValentineHandler) handleCustomTextAndPhoto(ctx context.Context, userID int, text string, attachments []object.MessagesMessageAttachment, data map[string]interface{}) bool {
 	// 1. Проверяем текст
-	if len(text) < 3 || len(text) > 500 {
-		vkkeyboard.SendMessage(h.vk, userID, "❌ Текст должен быть от 3 до 500 символов. Попробуйте снова:")
+	if len(text) < 1 || len(text) > 500 {
+		vkkeyboard.SendMessage(h.vk, userID, "❌ Текст должен быть от 1 до 500 символов. Попробуйте снова:")
 		return true
 	}
 
@@ -319,7 +316,6 @@ func (h *ValentineHandler) finishValentineSending(ctx context.Context, userID in
 		h.log.Error("Ошибка создания валентинки", "error", err)
 		vkkeyboard.SendKeyboard(h.vk, userID, "❌ Ошибка: "+err.Error(), vkkeyboard.NewStartKeyboard())
 	} else {
-		now := time.Now()
 		successMsg := "✅ Валентинка успешно создана!\n\n"
 		if isAnonymous {
 			successMsg += "🎭 Анонимная\n"
@@ -330,14 +326,12 @@ func (h *ValentineHandler) finishValentineSending(ctx context.Context, userID in
 		if photoURL != "" {
 			successMsg += "📷 С фото\n"
 		}
-		if now.Month() == time.February && now.Day() == 14 {
-			successMsg += "🎉 Отправлена немедленно (сегодня 14 февраля)!\n\n"
-		} else {
-			successMsg += "📅 Будет доставлена 14 февраля!\n\n"
-		}
 		successMsg += "Посмотреть отправленные можно в любой момент."
 		vkkeyboard.SendKeyboard(h.vk, userID, successMsg, vkkeyboard.NewStartKeyboard())
 		h.log.Info("Валентинка создана", "id", valentine.ID)
+
+		// Уведомляем Пользователя о пришедщей валентинке
+		h.NotifyMassege(valentine.RecipientID)
 	}
 	h.stateManager.ClearState(userID)
 }
@@ -436,31 +430,6 @@ func (h *ValentineHandler) handleViewReceived(ctx context.Context, userID int) {
 	vkkeyboard.SendKeyboard(h.vk, userID, msg, vkkeyboard.NewStartKeyboard())
 }
 
-// ------------------- ТЕСТОВАЯ КОМАНДА (для админов) -------------------
-func (h *ValentineHandler) handleTestSendAll(ctx context.Context, userID int) {
-	h.log.Info("Ручная отправка всех валентинок", "initiated_by", userID)
-
-	valentines, err := h.service.GetUnsentValentines(ctx)
-	if err != nil {
-		h.log.Error("Ошибка получения неотправленных", "error", err)
-		vkkeyboard.SendMessage(h.vk, userID, "❌ Ошибка получения валентинок")
-		return
-	}
-
-	if len(valentines) == 0 {
-		vkkeyboard.SendMessage(h.vk, userID, "✅ Нет неотправленных валентинок")
-		return
-	}
-
-	// Здесь можно добавить реальную отправку, но пока просто помечаем как отправленные
-	for _, v := range valentines {
-		_ = h.service.MarkValentineAsSent(ctx, v.ID) // игнорируем ошибку для демо
-	}
-
-	vkkeyboard.SendMessage(h.vk, userID,
-		fmt.Sprintf("✅ Помечено как отправлено: %d валентинок", len(valentines)))
-}
-
 // ------------------- СТАРТ ОТПРАВКИ -------------------
 
 func (h *ValentineHandler) startValentineSending(userID int) {
@@ -468,6 +437,14 @@ func (h *ValentineHandler) startValentineSending(userID int) {
 	vkkeyboard.SendKeyboard(h.vk, userID,
 		"Анонимная валентинка?",
 		vkkeyboard.NewAnonymityKeyboard())
+}
+
+// --------УВЕДОМЛЕНИЕ ПОЛУЧАТЕЛЯ
+func (h *ValentineHandler) NotifyMassege(recipientID int) { // возможно добавить слова про то какая валентинка.. хз
+	notify := "💝 Вам отправлена валентинка💝 \n\n"
+	notify += "Посмотреть можно нажавь кнопку '📥 Мои полученные'!\n\n"
+
+	vkkeyboard.SendKeyboard(h.vk, recipientID, notify, vkkeyboard.NewStartKeyboard())
 }
 
 // --------------ЗАГРУЗКА ФОТО ------
