@@ -108,6 +108,17 @@ func NewValentineTypeKeyboard() *object.MessagesKeyboard {
 					Color: "primary",
 				},
 			},
+            {
+                {
+                    
+                   Action: object.MessagesKeyboardButtonAction{
+                   Type:  "text",
+                    Label: "❌ Отмена",
+                     },
+                    Color: "negative",
+                                                                                                                                                       
+                },
+            },
 		},
 	}
 }
@@ -119,12 +130,13 @@ func NewTemplateKeyboard() *object.MessagesKeyboard {
 		Inline:  false, // обычная, не инлайн (лучше для ботов)
 		Buttons: [][]object.MessagesKeyboardButton{
 			{
-				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💝 1"}, Color: "primary"},
-				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💘 2"}, Color: "primary"},
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "1"}, Color: "primary"},
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "2"}, Color: "primary"},
 			},
 			{
-				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💖 3"}, Color: "primary"},
-				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "💗 4"}, Color: "primary"},
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "3"}, Color: "primary"},
+				{Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "4"}, Color: "primary"},
+                {Action: object.MessagesKeyboardButtonAction{Type: "text", Label: "5"}, Color: "primary"},
 			},
 		},
 	}

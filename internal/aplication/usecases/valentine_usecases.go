@@ -237,9 +237,13 @@ func cleanVKLink(link string) string {
 	link = strings.TrimPrefix(link, "http://")
 	link = strings.TrimPrefix(link, "vk.com/")
 	link = strings.TrimPrefix(link, "m.vk.com/")
+
+	link = strings.TrimPrefix(link, "vk.ru/")
+	link = strings.TrimPrefix(link, "m.vk.ru/")
 	link = strings.TrimPrefix(link, "@")
 
+	link = strings.TrimPrefix(link, "vk.me/")
 	// Удаляем префиксы типов объектов
-	link = strings.TrimPrefix(link, "id")
+//	link = strings.TrimPrefix(link, "id")
 	return link
 }
