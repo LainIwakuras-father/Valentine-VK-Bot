@@ -322,7 +322,17 @@ func (h *ValentineHandler) finishValentineSending(ctx context.Context, userID in
 		h.log.Info("Валентинка создана", "id", valentine.ID)
 
 		// Уведомляем Пользователя о пришедщей валентинке
-		//	h.NotifyMassege(valentine.RecipientID)
+		if err := h.NotifyMassege(valentine.RecipientID); err != nil {
+			h.log.Error("Ошибка уведомления",
+				"recipient_id", valentine.RecipientID,
+				"error", err)
+		} else {
+			h.log.Info("Уведомление отправлено",
+				"recipient_id", valentine.RecipientID)
+		}
+
+		h.log.Info("Отправил уведомление")
+
 	}
 	h.stateManager.ClearState(userID)
 }
@@ -431,11 +441,16 @@ func (h *ValentineHandler) startValentineSending(userID int) {
 }
 
 // --------УВЕДОМЛЕНИЕ ПОЛУЧАТЕЛЯ
-func (h *ValentineHandler) NotifyMassege(recipientID int) { // возможно добавить слова про то какая валентинка.. хз
+func (h *ValentineHandler) NotifyMassege(recipientID int) error { // возможно добавить слова про то какая валентинка.. хз
 	notify := "💝 Вам отправлена валентинка💝 \n\n"
 	notify += "Посмотреть можно нажавь кнопку '📥 Мои полученные'!\n\n"
 
-	vkkeyboard.SendKeyboard(h.vk, recipientID, notify, vkkeyboard.NewStartKeyboard())
+	err := vkkeyboard.SendKeyboard(h.vk, recipientID, notify, vkkeyboard.NewStartKeyboard())
+	if err != nil {
+		h.log.Error("ошибка отправки уведомления", "error", err)
+		return fmt.Errorf("ошибка отправки уведомления пользователю %d: %w", recipientID, err)
+	}
+	return nil
 }
 
 // --------------ЗАГРУЗКА ФОТО ------
