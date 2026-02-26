@@ -1,0 +1,5 @@
+version: v2.10.1
+plugins:
+  - module: 'github.com/LainIwakuras-father/loglint'
+    import: 'github.com/LainIwakuras-father/loglint/pkg/analyzer'
+    version: main

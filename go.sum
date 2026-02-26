@@ -1,3 +1,5 @@
+github.com/LainIwakuras-father/loglint v0.0.0-20260226160803-1ae33bb8f2fa h1:p0T8gJm6iz5tZXT0ypMQzqpW+ZznCAn2yli4q1a1KPU=
+github.com/LainIwakuras-father/loglint v0.0.0-20260226160803-1ae33bb8f2fa/go.mod h1:L36tkzWhhThCmv2vyTylgypYoRBJdGVprVVDk/8sk6k=
 github.com/SevereCloud/vksdk/v3 v3.2.2 h1:kSIl4bv4R8DflGqjrfkJZcDca6+NamJKtq8ozZ5z4ao=
 github.com/SevereCloud/vksdk/v3 v3.2.2/go.mod h1:pu8XeDePNv5SaUbp1NzWEdi6O1akYD6xkuM+aCUCOO4=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

@@ -11,6 +11,7 @@ require (
 )
 
 require (
+	github.com/LainIwakuras-father/loglint v0.0.0-20260226160803-1ae33bb8f2fa // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
