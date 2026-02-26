@@ -4,13 +4,13 @@ version: "2"
 linters:
   default: none
   enable:
-    - loglint  
+    - slogzaplint  
   settings:
     custom:
-      loglint:
+      slogzaplint:
         type: "module"
         description: This is an logging usage of a plugin linter.
-        original-url: "https://github.com/LainIwakuras-father/loglint"
+        original-url: "https://github.com/LainIwakuras-father/slogzaplint"
         settings:
           enabled-rules:
             - english
